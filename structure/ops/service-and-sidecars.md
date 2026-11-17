@@ -1,3 +1,5 @@
+> Personal fork: see [FORK.md](../../FORK.md). Telemetry/profile sending and self-updates are disabled; the proxy accepts only literal loopback binds and rejects Link/Hub configuration. Upstream contracts below describe other unchanged behavior.
+
 # Background Service And Sidecars
 
 Native result continuations and function-result injection follow [the mode-specific result and control contract](../transports/streaming-health.md#experimental-native-function-result-injection); this surface does not infer upstream support or alter its defaults.

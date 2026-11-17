@@ -464,6 +464,7 @@ async function resolvedRuntimeOwnership(): Promise<RuntimeOwnershipObservation> 
  * Bun binary.
  */
 export async function runUpdate(child?: Extract<OrchestratedChildArgs, { ok: true }>): Promise<void> {
+  if (packageVersion()) throw new Error("Personal build updates require a reviewed rebuild from abdomsisn/opencodex");
   let session: ReturnType<typeof createOrchestratedChildSession> | undefined;
   if (child) {
     try {

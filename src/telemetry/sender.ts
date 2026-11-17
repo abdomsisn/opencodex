@@ -49,6 +49,8 @@ export async function sendTelemetryPayload(
   payload: TelemetryPayloadV1,
   options: TelemetrySendOptions = {},
 ): Promise<TelemetrySendResult> {
+  // Defense in depth: refuse direct calls as well as scheduled sends.
+  if (TELEMETRY_COLLECTOR_ENDPOINT) return { ok: false, error: "Disabled in personal build" };
   const now = options.now ?? testOverrides?.now ?? Date.now();
   const validated = validateTelemetryPayloadV1(payload, now);
   if (!validated.ok) {

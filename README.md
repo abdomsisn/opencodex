@@ -1,3 +1,5 @@
+> **Personal hardened build**: see [FORK.md](FORK.md). Build only from this fork; upstream install/update commands below install the upstream product, not this build.
+
 <p align="center">
   <img src="assets/banner.png" alt="opencodex — one local gateway for Codex, Claude Code, Claude Desktop, Grok Build and more" width="100%">
 </p>

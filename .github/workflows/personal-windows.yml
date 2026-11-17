@@ -1,0 +1,72 @@
+name: Personal Windows build
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: personal-windows
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: windows-2025
+    timeout-minutes: 60
+    env:
+      OCX_TELEMETRY: '0'
+      DO_NOT_TRACK: '1'
+      CARGO_NET_GIT_FETCH_WITH_CLI: 'true'
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.4'
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master snapshot
+        with:
+          toolchain: stable
+          targets: x86_64-pc-windows-msvc
+      - name: Isolate runtime state and record build inputs
+        run: |
+          "OPENCODEX_HOME=$env:RUNNER_TEMP\ocx-personal-test" >> $env:GITHUB_ENV
+          "CODEX_HOME=$env:RUNNER_TEMP\codex-personal-test" >> $env:GITHUB_ENV
+          New-Item -ItemType Directory -Force dist/personal | Out-Null
+          @("source=$env:GITHUB_SHA", "upstream=c36793a9336b70cfe5bc3b7f6e6f751e730fb6fc", "bun=$(bun --version)", "rust=$(rustc --version)", "cargo=$(cargo --version)", "signing=unsigned", "installed=false") | Set-Content dist/personal/BUILD-INFO.txt
+      - name: Install locked dependencies
+        run: |
+          bun install --frozen-lockfile
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          bun install --frozen-lockfile --cwd desktop
+          exit $LASTEXITCODE
+      - name: Check TypeScript
+        run: bun run typecheck:tsc
+      - name: Test personal security boundaries
+        run: bun test ./tests/personal-hardening.test.ts
+      - name: Scan credential and privacy fixtures
+        run: bun run privacy:scan
+      - name: Build dashboard
+        run: bun run build:gui
+      - name: Compile Windows sidecar from source
+        run: bun desktop/scripts/prepare-sidecar.ts --target x86_64-pc-windows-msvc
+      - name: Build Windows MSI with locked Rust dependencies
+        working-directory: desktop
+        run: bun run build -- --ci --target x86_64-pc-windows-msvc --bundles msi -- --locked
+      - name: Collect and hash installer
+        run: |
+          $packages = @(Get-ChildItem desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi)
+          if ($packages.Count -ne 1) { throw 'Expected exactly one MSI' }
+          $target = 'dist/personal/OpenCodex-Personal-2.100.0-windows-x64.msi'
+          Copy-Item -LiteralPath $packages[0].FullName -Destination $target
+          $hash = Get-FileHash -Algorithm SHA256 -LiteralPath $target
+          "$($hash.Hash.ToLowerInvariant())  $([IO.Path]::GetFileName($target))" | Set-Content dist/personal/SHA256SUMS.txt
+          $signature = Get-AuthenticodeSignature -LiteralPath $target
+          "authenticode=$($signature.Status)" | Add-Content dist/personal/BUILD-INFO.txt
+          Copy-Item FORK.md dist/personal/FORK.md
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: opencodex-personal-windows-x64
+          path: dist/personal/
+          if-no-files-found: error
+          retention-days: 30

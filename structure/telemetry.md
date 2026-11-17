@@ -1,3 +1,5 @@
+> Personal fork: see [FORK.md](../FORK.md). Telemetry/profile sending and self-updates are disabled; the proxy accepts only literal loopback binds and rejects Link/Hub configuration. Upstream contracts below describe other unchanged behavior.
+
 # Telemetry
 
 Anonymous, default-on daily usage telemetry owned by `src/telemetry/`, `src/types/telemetry.ts`,

@@ -440,6 +440,11 @@ export function requestPolicyView(
 }
 
 export function assertServerAuthConfig(config: OcxConfig): void {
+  // This fork is for one local workstation, not a remotely reachable gateway.
+  const host = config.hostname ?? "127.0.0.1";
+  if (!["127.0.0.1", "::1"].includes(host) || config.link || config.runtimeRole === "hub") {
+    throw new Error("Personal build permits only literal loopback listeners; remote Link and Hub are disabled");
+  }
   const hasConfiguredDataCredential = !!configuredApiAuthToken(config)
     || (config.apiKeys ?? []).some(entry => !!entry.key.trim());
   if (isApiAuthRequired(config) && !hasConfiguredDataCredential) {

@@ -29,7 +29,7 @@
     <!-- The stamp the page started from, restored when Next leaves the carried choice unchanged. -->
     <SetProperty Action="OcxTelemetryCarriedStamp" Id="OCX_TELEMETRY_CARRIED_STAMP" Value="[OCX_TELEMETRY_STAMP]" After="OcxTelemetryKeepStamp" Sequence="ui">OCX_TELEMETRY_STAMP &lt;&gt; ""</SetProperty>
     <!-- After KeepStamp, which runs in both sequences: WiX's linker rejects a parent missing from a sequence. -->
-    <SetProperty Action="OcxTelemetryDefaultChoice" Id="OCX_TELEMETRY_CHOICE" Value="send" After="OcxTelemetryKeepStamp" Sequence="both">OCX_TELEMETRY_CHOICE = ""</SetProperty>
+    <SetProperty Action="OcxTelemetryDefaultChoice" Id="OCX_TELEMETRY_CHOICE" Value="skip" After="OcxTelemetryKeepStamp" Sequence="both">OCX_TELEMETRY_CHOICE = ""</SetProperty>
     <!-- The box starts checked only when the choice is send, so a carried opt-out (or any other carried value) starts unchecked. -->
     <SetProperty Action="OcxTelemetryCheckBox" Id="OCX_TELEMETRY_SEND" Value="1" After="OcxTelemetryDefaultChoice" Sequence="ui">OCX_TELEMETRY_CHOICE ~= "send"</SetProperty>
     <ComponentGroup Id="OcxTelemetryInstallerChoice">

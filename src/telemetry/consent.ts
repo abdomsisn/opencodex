@@ -59,6 +59,8 @@ export function resolveTelemetryStatus(
   config: { telemetry?: OcxTelemetryConfig | null } | null | undefined,
   env: Record<string, string | undefined> = process.env,
 ): TelemetryConsentStatus {
+  // Personal build: configuration and installer choices cannot enable telemetry.
+  env = { ...env, OCX_TELEMETRY: "0" };
   const telemetry = extractTelemetryConfig(config);
   const decision = telemetry?.decision === "accepted" || telemetry?.decision === "declined"
     ? telemetry.decision

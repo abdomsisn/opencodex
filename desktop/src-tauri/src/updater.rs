@@ -373,6 +373,9 @@ fn configured_updater_target() -> Option<&'static str> {
 }
 
 pub async fn check(app: &AppHandle) -> Result<Option<Update>, String> {
+    if !app.package_info().name.is_empty() {
+        return Ok(None); // Personal build: never query the upstream updater.
+    }
     let mut builder = app.updater_builder();
     if let Some(target) = configured_updater_target() {
         builder = builder.target(target);
@@ -386,6 +389,9 @@ pub async fn check(app: &AppHandle) -> Result<Option<Update>, String> {
 }
 
 pub async fn install(app: &AppHandle, update: Update) -> Result<(), String> {
+    if !app.package_info().name.is_empty() {
+        return Err("Personal build updates require a reviewed rebuild".into());
+    }
     // Download and verify first, and separately from installing. The pinned updater checks the
     // release signature inside `download`, so these bytes are the ones the key signed; nothing has
     // been replaced yet, and a failure here costs only the download.
