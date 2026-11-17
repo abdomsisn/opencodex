@@ -50,9 +50,11 @@ jobs:
         run: bun run build:gui
       - name: Compile Windows sidecar from source
         run: bun desktop/scripts/prepare-sidecar.ts --target x86_64-pc-windows-msvc
+      - name: Check compiled sidecar version without starting the proxy
+        run: ./desktop/src-tauri/binaries/ocx-x86_64-pc-windows-msvc.exe --version
       - name: Build Windows MSI with locked Rust dependencies
         working-directory: desktop
-        run: bun run build -- --ci --target x86_64-pc-windows-msvc --bundles msi -- --locked
+        run: bun run build --ci --target x86_64-pc-windows-msvc --bundles msi -- --locked
       - name: Collect and hash installer
         run: |
           $packages = @(Get-ChildItem desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi)

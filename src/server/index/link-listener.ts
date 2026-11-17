@@ -1,3 +1,4 @@
+const PERSONAL_BUILD_REMOTE_DISABLED: boolean = true;
 import { createLinkRelaySessions, type LinkCatalogServed } from "./link-relay-sessions";
 import { createLinkPeerObservations, type LinkPeerEntry } from "../../link/peer-report";
 import { createLinkActivity, type LinkActivitySnapshot } from "../../link/child-activity";
@@ -210,8 +211,10 @@ export function createLinkListenerLifecycle<T>(deps: LinkListenerDeps = {}): Lin
 
   const bindIfNeeded = (): void => {
     // Personal build: never start a relay listener, including after a live configuration change.
-    setStatus("off", null, null);
-    return;
+    if (PERSONAL_BUILD_REMOTE_DISABLED) {
+      setStatus("off", null, null);
+      return;
+    }
     if (stopped || listener || !startContext) return;
     let store: LinkStore;
     try {

@@ -4,10 +4,14 @@ import { sendTelemetryPayload } from "../src/telemetry/sender";
 import { createProfile } from "../src/telemetry/profile/client";
 import { assertServerAuthConfig } from "../src/server/auth-cors";
 import { requireManagementAuth } from "../src/server/management-auth";
+import { runUpdate } from "../src/update/index";
 import type { OcxConfig } from "../src/types";
 import { readFileSync } from "node:fs";
 
 describe("personal build security boundaries", () => {
+  test("self-update fails before downloading or stopping the runtime", async () => {
+    await expect(runUpdate()).rejects.toThrow("reviewed rebuild");
+  });
   test("an existing opt-in or explicit environment opt-in cannot enable telemetry", () => {
     expect(resolveTelemetryStatus({ telemetry: { decision: "accepted", decidedAt: "2026-11-16T00:00:00Z", noticeShownAt: "2026-11-16T00:00:00Z" } }, { OCX_TELEMETRY: "1" }).effective).toBe(false);
     expect(resolveTelemetryStatus({}, {}).effective).toBe(false);
