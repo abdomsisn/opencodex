@@ -29,7 +29,7 @@ describe("personal build security boundaries", () => {
       expect(() => assertServerAuthConfig({ hostname } as OcxConfig)).not.toThrow();
     }
     expect(() => assertServerAuthConfig({ runtimeRole: "hub" } as OcxConfig)).toThrow("Personal build");
-    expect(() => assertServerAuthConfig({ link: {} } as OcxConfig)).toThrow("Personal build");
+    expect(() => assertServerAuthConfig({ client: {} } as OcxConfig)).toThrow("Personal build");
   });
   test("management still rejects an unauthenticated caller", () => {
     const state = { available: true as const, token: "test-only-admin-token", source: "environment" as const, sessions: new Map(), pairingGrants: new Map() };

@@ -1,3 +1,4 @@
+const PERSONAL_BUILD_TELEMETRY_DISABLED: boolean = true;
 import { signalWithTimeout } from "../../lib/abort";
 import { parseCalendarUtcDayMs } from "../contract";
 import {
@@ -47,7 +48,7 @@ async function call<T>(
   options: ProfileClientOptions,
   init: { secret?: string; body?: unknown } = {},
 ): Promise<ProfileCallResult<T>> {
-  if (TELEMETRY_PROFILE_API_BASE) return { ok: false, error: "Disabled in personal build" };
+  if (PERSONAL_BUILD_TELEMETRY_DISABLED) return { ok: false, error: "Disabled in personal build" };
   const base = options.baseUrl ?? testOverrides?.baseUrl ?? TELEMETRY_PROFILE_API_BASE;
   const fetchImpl = options.fetch ?? testOverrides?.fetch ?? globalThis.fetch;
   const timeoutMs = options.timeoutMs ?? testOverrides?.timeoutMs ?? TELEMETRY_PROFILE_TIMEOUT_MS;

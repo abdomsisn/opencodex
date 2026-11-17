@@ -1,3 +1,4 @@
+const PERSONAL_BUILD_UPDATES_DISABLED: boolean = true;
 import { guardedRun, guardedSpawn, guardedSpawnSync } from "./mutation-guard.mjs";
 import { probeSpawn, probeSpawnSync } from "./mutation-guard.mjs";
 import { createSupervisionLatch, inspectDesktopSupervision } from "../service/desktop-supervision.mjs";
@@ -464,7 +465,7 @@ async function resolvedRuntimeOwnership(): Promise<RuntimeOwnershipObservation> 
  * Bun binary.
  */
 export async function runUpdate(child?: Extract<OrchestratedChildArgs, { ok: true }>): Promise<void> {
-  if (packageVersion()) throw new Error("Personal build updates require a reviewed rebuild from abdomsisn/opencodex");
+  if (PERSONAL_BUILD_UPDATES_DISABLED) throw new Error("Personal build updates require a reviewed rebuild from abdomsisn/opencodex");
   let session: ReturnType<typeof createOrchestratedChildSession> | undefined;
   if (child) {
     try {

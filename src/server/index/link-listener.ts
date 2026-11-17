@@ -209,6 +209,9 @@ export function createLinkListenerLifecycle<T>(deps: LinkListenerDeps = {}): Lin
   };
 
   const bindIfNeeded = (): void => {
+    // Personal build: never start a relay listener, including after a live configuration change.
+    setStatus("off", null, null);
+    return;
     if (stopped || listener || !startContext) return;
     let store: LinkStore;
     try {

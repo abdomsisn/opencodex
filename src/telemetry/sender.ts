@@ -1,3 +1,4 @@
+const PERSONAL_BUILD_TELEMETRY_DISABLED: boolean = true;
 import { signalWithTimeout } from "../lib/abort";
 import { validateTelemetryPayloadV1, type TelemetryPayloadV1 } from "./contract";
 
@@ -50,7 +51,7 @@ export async function sendTelemetryPayload(
   options: TelemetrySendOptions = {},
 ): Promise<TelemetrySendResult> {
   // Defense in depth: refuse direct calls as well as scheduled sends.
-  if (TELEMETRY_COLLECTOR_ENDPOINT) return { ok: false, error: "Disabled in personal build" };
+  if (PERSONAL_BUILD_TELEMETRY_DISABLED) return { ok: false, error: "Disabled in personal build" };
   const now = options.now ?? testOverrides?.now ?? Date.now();
   const validated = validateTelemetryPayloadV1(payload, now);
   if (!validated.ok) {

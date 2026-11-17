@@ -1,3 +1,5 @@
+> Personal fork: the Link listener is disabled even after live configuration changes; remote client configuration is rejected at proxy startup. See [FORK.md](../FORK.md).
+
 # Remote Link
 
 Signal fencing uses the configuration mutation lock (`C`), yielding 50 ms between at most 20 attempts only when `ConfigMutationLockError` wraps `SQLITE_BUSY` or `SQLITE_LOCKED`; identity, storage and other failures refuse immediately. Restoration callers must explicitly supply their sync-fence verdict. `tests/clients/client-link-stop.test.ts` covers a real cross-process C transaction, retry exhaustion and non-contention errors.

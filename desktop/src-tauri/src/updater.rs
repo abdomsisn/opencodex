@@ -1,3 +1,4 @@
+const PERSONAL_BUILD_UPDATES_DISABLED: bool = true;
 use crate::{
     exit::{AbortedRestart, ExitCoordinator, ExitPhase, RestartReadiness},
     logging, tray,
@@ -373,7 +374,7 @@ fn configured_updater_target() -> Option<&'static str> {
 }
 
 pub async fn check(app: &AppHandle) -> Result<Option<Update>, String> {
-    if !app.package_info().name.is_empty() {
+    if PERSONAL_BUILD_UPDATES_DISABLED {
         return Ok(None); // Personal build: never query the upstream updater.
     }
     let mut builder = app.updater_builder();
@@ -389,7 +390,7 @@ pub async fn check(app: &AppHandle) -> Result<Option<Update>, String> {
 }
 
 pub async fn install(app: &AppHandle, update: Update) -> Result<(), String> {
-    if !app.package_info().name.is_empty() {
+    if PERSONAL_BUILD_UPDATES_DISABLED {
         return Err("Personal build updates require a reviewed rebuild".into());
     }
     // Download and verify first, and separately from installing. The pinned updater checks the
