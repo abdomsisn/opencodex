@@ -58,6 +58,8 @@ no management route. Imported accounts use existing quota validation; deferred w
 
 The `v2-plaintext` surface option is exposed only when `GET /api/v2` advertises `supportsPlaintextV2Mode: true`. Entering it requires the dashboard's explicit task-retention acknowledgment, sent as `plaintextAgentMessagesAcknowledged: true` in the same PUT as the mode. `plaintextAgentMessagesEnabled` reports the derived compiler state; successful configuration and catalog synchronization do not prove a real provider handoff. The mode leaves the global override off and preserves independent legacy settings. Existing authentication and write permissions are unchanged.
 
+The usage timeline accepts an optional USD cost metric and up to 32 strictly increasing timestamp boundaries in milliseconds. Calendar buckets are half-open, span at most 370 days, and carry request and token totals plus counts of priced and unpriced observations. The cost timeline prefers the API quote for native OpenAI usage and keys its response cache on the pricing revision.
+
 ## Compact desktop usage
 
 The standalone `/#/tray` GUI route presents local usage and account limits without

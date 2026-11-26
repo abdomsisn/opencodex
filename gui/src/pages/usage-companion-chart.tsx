@@ -9,7 +9,7 @@ import {
 const CHART_COLORS = ["#0A84FF", "#FF9F0A", "#30D158", "#BF5AF2", "#FF453A", "#64D2FF"];
 const WIDTH = 640;
 const HEIGHT = 160;
-const PADDING = 28;
+const DEFAULT_PADDING = 28;
 
 function maxValue(timeline: UsageTimeline, chartStyle: "line" | "stackedBar"): number {
   if (chartStyle === "stackedBar") {
@@ -23,8 +23,8 @@ function maxValue(timeline: UsageTimeline, chartStyle: "line" | "stackedBar"): n
 function dateLabels(timeline: UsageTimeline, locale: Locale): string[] {
   // Up to a day reads by the clock; up to three days the clock alone is ambiguous, so the
   // label carries the day too; a week reads by the day.
-  const span = timeline.buckets * timeline.bucketSeconds;
-  const formatter = new Intl.DateTimeFormat(locale, span <= 24 * 3600
+  const span = timeline.end - timeline.start;
+  const formatter = new Intl.DateTimeFormat(locale, span <= 25 * 3600
     ? { hour: "2-digit", minute: "2-digit" }
     : span <= 72 * 3600 ? { month: "numeric", day: "numeric", hour: "2-digit" } : { month: "short", day: "numeric" });
   const interval = Math.max(1, Math.floor((timeline.buckets - 1) / 3));
@@ -43,6 +43,8 @@ export function UsageCompanionChart({
   onRetry,
   locale,
   t,
+  formatValue = formatCompanionTokens,
+  chartLabel,
 }: {
   timeline: UsageTimeline | null;
   chartStyle: "line" | "stackedBar";
@@ -52,6 +54,8 @@ export function UsageCompanionChart({
   onRetry: () => void;
   locale: Locale;
   t: TFn;
+  formatValue?: (value: number) => string;
+  chartLabel?: string;
 }) {
   if (loading) {
     return <div className="usage-companion-chart-skeleton" aria-busy="true" aria-label={t("usage.companion.loading")} />;
@@ -67,22 +71,23 @@ export function UsageCompanionChart({
   if (!timeline || timeline.series.length === 0) {
     return <div className="usage-companion-chart-state">{t("usage.companion.empty", { hours: timeline?.buckets ? Math.round(timeline.buckets * timeline.bucketSeconds / 3600) : hours })}</div>;
   }
+  const padding = chartLabel ? 66 : DEFAULT_PADDING;
   const max = maxValue(timeline, chartStyle);
   const labels = dateLabels(timeline, locale);
-  const plotWidth = WIDTH - PADDING * 2;
-  const plotHeight = HEIGHT - PADDING * 2;
-  const y = PADDING;
-  const baseline = PADDING + plotHeight;
+  const plotWidth = WIDTH - padding * 2;
+  const plotHeight = HEIGHT - padding * 2;
+  const y = padding;
+  const baseline = padding + plotHeight;
   const translate = "trans" + "late";
   const xLabels = labels.map((label, index) => (
-    <text key={`${label}-${index}`} x={PADDING + plotWidth * index / 3} y={HEIGHT - 4} textAnchor={index === 0 ? "start" : index === 3 ? "end" : "middle"} className="usage-companion-axis-label">{label}</text>
+    <text key={`${label}-${index}`} x={padding + plotWidth * index / 3} y={HEIGHT - 4} textAnchor={index === 0 ? "start" : index === 3 ? "end" : "middle"} className="usage-companion-axis-label">{label}</text>
   ));
   const marks = chartStyle === "line"
     ? timeline.series.map((series, index) => (
       <polyline
         key={series.id}
         points={chartPolylinePoints(series.points, plotWidth, plotHeight, max, 0)}
-        transform={`${translate}(${PADDING},${PADDING})`}
+        transform={`${translate}(${padding},${padding})`}
         fill="none"
         stroke={CHART_COLORS[index % CHART_COLORS.length]}
         strokeWidth="2"
@@ -93,8 +98,8 @@ export function UsageCompanionChart({
     : chartStackedBarRects(timeline.series, plotWidth, plotHeight, max, 0).map(rect => (
       <rect
         key={`${rect.bucketIndex}-${rect.seriesIndex}`}
-        x={PADDING + rect.x}
-        y={PADDING + rect.y}
+        x={padding + rect.x}
+        y={padding + rect.y}
         width={rect.width}
         height={rect.height}
         fill={CHART_COLORS[rect.seriesIndex % CHART_COLORS.length]}
@@ -103,10 +108,10 @@ export function UsageCompanionChart({
     ));
   return (
     <div className="usage-companion-chart">
-      <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={t("usage.companion.chartLabel")}>
-        <line x1={PADDING} y1={y} x2={PADDING} y2={baseline} className="usage-companion-axis" />
-        <line x1={PADDING} y1={baseline} x2={WIDTH - PADDING} y2={baseline} className="usage-companion-axis" />
-        <text x={PADDING - 4} y={y + 4} textAnchor="end" className="usage-companion-axis-label">{formatCompanionTokens(max)}</text>
+      <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={chartLabel ?? t("usage.companion.chartLabel")}>
+        <line x1={padding} y1={y} x2={padding} y2={baseline} className="usage-companion-axis" />
+        <line x1={padding} y1={baseline} x2={WIDTH - padding} y2={baseline} className="usage-companion-axis" />
+        <text x={padding - 4} y={y + 4} textAnchor="end" className="usage-companion-axis-label">{formatValue(max)}</text>
         {marks}
         {xLabels}
       </svg>

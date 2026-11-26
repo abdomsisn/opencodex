@@ -31,6 +31,24 @@ function attempt(totalTokens: number, ordinal: number): NonNullable<PersistedUsa
 }
 
 describe("usage timeline", () => {
+  test("cost buckets use half-open boundaries and keep unpriced usage separate", () => {
+    const edge = now - 100;
+    const params = new URLSearchParams({ metric: "cost", boundaries: [now - 200, edge, now].join(",") });
+    const query = parseTimelineQuery(params, now);
+    if ("error" in query) throw new Error(query.error);
+    const acc = createTimelineAccumulator(query);
+    const usage = { inputTokens: 100, outputTokens: 20 };
+    acc.add(entry({ timestamp: edge - 1, model: "gpt-6-astra", usage }));
+    acc.add(entry({ timestamp: edge, provider: "openai-apikey", model: "gpt-6-astra", usage }));
+    acc.add(entry({ timestamp: edge, model: "missing-price", usage }));
+    acc.add(entry({ timestamp: now, model: "gpt-6-astra", usage }));
+    const result = acc.finish();
+    expect(result.costCoverage).toEqual({ priced: [1, 1], unpriced: [0, 1] });
+    expect(result.series.find(row => row.provider === "openai")?.points).toEqual([0.002, 0]);
+    expect(result.series.find(row => row.provider === "openai-apikey")?.points).toEqual([0, 0.002]);
+    expect(parseTimelineQuery(new URLSearchParams({ boundaries: [edge, edge].join(",") }), now)).toHaveProperty("error");
+  });
+
   test("nested native model ids remain selectable", () => {
     const model = "github-models/openai/gpt-4.1";
     const query = parseTimelineQuery(new URLSearchParams({ models: model }), now);

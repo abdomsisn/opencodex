@@ -38,13 +38,15 @@ export interface UsageTimeline {
   end: number;
   bucketSeconds: number;
   buckets: number;
-  metric: TimelineMetric;
+  metric: TimelineMetric | "cost";
   aggregation: TimelineAggregation;
   grouping: TimelineGrouping;
   series: TimelineSeries[];
   availableModels: string[];
   missingMeasurements: number;
   truncated: boolean;
+  costCoverage?: { priced: number[]; unpriced: number[] };
+  bucketUsage?: { requests: number[]; tokens: number[] };
 }
 
 type TimelineSettings = Pick<CompanionSettings, 'chartHours' | 'bucketMinutes' | 'tokenMetric' | 'aggregation' | 'chartGrouping' | 'models' | 'hiddenProviders'>;

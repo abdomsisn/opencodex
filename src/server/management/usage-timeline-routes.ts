@@ -1,5 +1,6 @@
 import { readUsageSnapshotForManagement } from "../../usage/log";
 import { createTimelineAccumulator, parseTimelineQuery } from "../../usage/timeline";
+import { userCostOverlayVersion } from "../../usage/user-cost-overlays";
 import { jsonResponse } from "../auth-cors";
 import type { ManagementContext } from "./context";
 
@@ -14,7 +15,7 @@ export async function handleUsageTimelineRoutes(ctx: ManagementContext): Promise
   const bucketMs = query.bucketMinutes * 60_000;
   const roundedNow = Math.floor(query.now / bucketMs) * bucketMs;
   const normalized = { ...query, now: roundedNow };
-  const key = JSON.stringify(normalized);
+  const key = JSON.stringify([normalized, ctx.config.managementUsageMaxReadBytes, query.metric === "cost" ? userCostOverlayVersion() : null]);
   const current = Date.now();
   const cached = cache.get(key);
   if (cached && cached.expiresAt > current) return jsonResponse(await cached.promise, 200, req, ctx.config);

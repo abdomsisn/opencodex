@@ -87,6 +87,63 @@ const expectedReads = [
   '/api/companion/settings', '/api/usage?range=today', '/api/usage?range=30d',
 ];
 
+test('the cost chart drills from a month through weeks and days into the hourly curve', async () => {
+  const base = '/api/machine/hub-relay';
+  const read = stubFetch(base);
+  render(async () => base, base);
+  globalThis.fetch = async (input, init) => {
+    const url = new URL(String(input), 'http://127.0.0.1');
+    if (url.pathname.endsWith('/api/companion/settings')) {
+      return Response.json({ settings: {
+        hiddenProviders: [], models: null, showChart: true, showToday: true,
+        showAccounts: false, showModels: false, chartHours: 24, bucketMinutes: 60, chartGrouping: 'model',
+      } });
+    }
+    if (url.pathname.endsWith('/api/usage/timeline')) {
+      expect(url.searchParams.get('metric')).toBe('cost');
+      const edges = url.searchParams.get('boundaries')?.split(',').map(Number);
+      const buckets = edges ? edges.length - 1 : 24;
+      const start = (edges?.[0] ?? Date.now() - 86_400_000) / 1000;
+      const end = (edges?.at(-1) ?? Date.now()) / 1000;
+      return Response.json({
+        metric: 'cost', buckets, start, end, bucketSeconds: 3600, availableModels: ['openai/gpt-5'],
+        appliedFilters: { models: null, hiddenProviders: [] },
+        series: [
+          { id: 'openai/gpt-5', model: 'gpt-5', provider: 'openai', points: Array(buckets).fill(0.75), total: buckets * 0.75 },
+          { id: 'openai/gpt-6', model: 'gpt-6', provider: 'openai', points: Array(buckets).fill(0.25), total: buckets * 0.25 },
+        ],
+        costCoverage: { priced: Array(buckets).fill(1), unpriced: Array(buckets).fill(0) },
+        bucketUsage: { requests: Array(buckets).fill(5), tokens: Array(buckets).fill(1200) },
+        missingMeasurements: 0, truncated: false,
+      });
+    }
+    return read(input, init);
+  };
+  await settle();
+  expect(container.querySelector('.tray-figure dd')?.textContent).toBe('$1.00');
+  const click = async (selector: string, label?: string) => {
+    const button = Array.from(container.querySelectorAll<HTMLButtonElement>(selector)).find(node => !label || node.textContent === label);
+    expect(button).toBeDefined();
+    await act(async () => { button!.click(); });
+    await settle(5);
+  };
+  await click('.tray-chart-tags button', 'Bar chart');
+  expect(container.querySelectorAll('.tray-cost-bars button')).toHaveLength(30);
+  expect(container.querySelectorAll('.tray-cost-stack:first-child > span')).toHaveLength(60);
+  expect(container.querySelector('.tray-bars-summary')?.textContent).toContain('5 requests');
+  expect(container.querySelector('.tray-chart .usage-companion-legend')?.textContent).toContain('gpt-6');
+  await click('.tray-chart-tags button', 'Month');
+  expect(container.querySelectorAll('.tray-cost-bars button')).toHaveLength(6);
+  await click('.tray-cost-bars button');
+  expect(container.querySelectorAll('.tray-cost-bars button').length).toBeGreaterThanOrEqual(4);
+  await click('.tray-cost-bars button');
+  expect(container.querySelectorAll('.tray-cost-bars button').length).toBeGreaterThan(0);
+  await click('.tray-cost-bars button');
+  expect(container.querySelector('.tray-chart svg')?.getAttribute('aria-label')).toBe('Estimated API cost');
+  await click('.tray-chart-detail button');
+  expect(container.querySelector('.tray-cost-bars button')).not.toBeNull();
+});
+
 for (const base of ['https://hub.example.test', '/api/machine/hub-relay']) {
   test(`nothing is polled before resolution, then every read and the switch use ${base}`, async () => {
     const targets = deferred<string>();
@@ -98,7 +155,10 @@ for (const base of ['https://hub.example.test', '/api/machine/hub-relay']) {
     await settle();
     expect(requests.length).toBeGreaterThan(0);
     for (const request of requests) expect(request.url.startsWith(`${base}/api/`)).toBe(true);
-    expect(new Set(requests.map(request => request.url.slice(base.length)))).toEqual(new Set(expectedReads));
+    const paths = requests.map(request => request.url.slice(base.length));
+    expect(paths.filter(path => path.startsWith('/api/usage/timeline?'))).toHaveLength(1);
+    expect(paths.find(path => path.startsWith('/api/usage/timeline?'))).toContain('metric=cost');
+    expect(new Set(paths.filter(path => !path.startsWith('/api/usage/timeline?')))).toEqual(new Set(expectedReads));
     // The header's connection state is read off those same reads; it adds no request of its own.
     expect(container.querySelector('.tray-status')?.getAttribute('data-state')).toBe('up');
 

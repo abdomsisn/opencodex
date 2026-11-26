@@ -129,6 +129,9 @@ The dashboard was redesigned: its sidebar now groups pages into **Everyday**, **
   the sidebar. The classic sidebar has **New dashboard** at the top of its foot to come back.
 - The choice is remembered per browser, so opening `/` later lands on the dashboard you picked.
   The desktop app follows the same choice. The tray popover always uses the new design.
+
+On Windows and Linux, the tray usage popup shows estimated API costs in USD. Use **Bar chart** to view daily, weekly, or monthly costs stacked by model. Hover or focus a bar to see its tokens, requests, and estimated cost. Select a month to see weeks, a week to see days, or a day to see the hourly curve. Weeks begin on Monday in local time. Usage without a price or measurement can leave estimates incomplete.
+
 - The classic dashboard is a snapshot of the previous design. It talks to the same proxy and
   changes the same settings, but pages and settings added after the redesign appear only in the
   new dashboard.

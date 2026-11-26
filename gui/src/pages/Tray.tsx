@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { createBoundedFetch } from '../bounded-fetch';
 import { useI18n } from '../i18n/shared';
-import { UsageCompanionChart } from './usage-companion-chart';
-import { companionTimelineQuery, companionTimelineProjection, type CompanionSettings, type CompanionSettingsResponse, type UsageTimeline } from './usage-companion-utils';
+import { companionTimelineProjection, type CompanionSettings, type CompanionSettingsResponse, type UsageTimeline } from './usage-companion-utils';
 import { accountSwitchRequest, fetchTrayJson, parseTrayUsage, filterUsage, parseAccounts, providerSources, type TrayProvider, type TraySwitchKind, type TrayUsage } from './tray-data';
 import { resolveTrayApiBase } from './tray-targets';
 import { TrayAlert, TrayCard, TrayFooter, TrayHeader, type TrayConnection } from './tray/TrayParts';
+import { chartBoundaries, costTimelinePath, costTotal, type ChartView, type Period } from './tray/cost-history';
+import { TrayCostChart } from './tray/TrayCostChart';
 import { TrayModelsCard, TrayTotalsCard } from './tray/TrayUsage';
 import { TrayProviderCard } from './tray/TrayAccounts';
 
@@ -30,8 +31,14 @@ export default function Tray({ resolveApiBase = resolveTrayApiBase }: TrayProps 
   const [usageError, setUsageError] = useState(false);
   const [providers, setProviders] = useState<TrayProvider[]>([]);
   const [quotaError, setQuotaError] = useState(false);
-  const [timeline, setTimeline] = useState<UsageTimeline | null>(null);
-  const [chartError, setChartError] = useState(false);
+  const [period, setPeriod] = useState<Period | null>(null);
+  const [drill, setDrill] = useState<ChartView[]>([]);
+  const detail = drill.at(-1);
+  const chartKey = JSON.stringify([period, detail]);
+  const [dailyCost, setDailyCost] = useState<UsageTimeline | null>(null);
+  const [chart, setChart] = useState<{ key: string; data: UsageTimeline | null; boundaries?: number[] } | null>(null);
+  const visibleChart = chart?.key === chartKey ? chart : null;
+  const choosePeriod = (value: Period | null) => { setPeriod(value); setDrill([]); };
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [revision, setRevision] = useState(0);
@@ -143,15 +150,35 @@ export default function Tray({ resolveApiBase = resolveTrayApiBase }: TrayProps 
               setUsageError(results.some(result => result.status === 'rejected'));
             }
           });
-          const chart = (async () => {
+          const now = Date.now();
+          const readCost = async (boundaries?: number[]) => {
+            const data = await json<UsageTimeline>(costTimelinePath(config, boundaries));
+            if (data.metric !== 'cost' || !data.costCoverage) throw new Error('Invalid cost timeline');
+            const projected = companionTimelineProjection(data, config);
+            if (config.models?.length === 0) {
+              const zero = Array<number>(data.buckets).fill(0);
+              return { ...projected, missingMeasurements: 0, costCoverage: { priced: zero, unpriced: zero },
+                bucketUsage: { requests: zero, tokens: zero } };
+            }
+            return projected;
+          };
+          const dailyBoundaries = chartBoundaries(now, 'day');
+          const daily = readCost(dailyBoundaries).then(data => {
+            if (active()) { setDailyCost(data); hadSuccess = true; }
+            return data;
+          }, () => {
+            if (active()) setDailyCost(null);
+            return null;
+          });
+          const chartLoad = (async () => {
             if (!config.showChart) return;
-            const query = companionTimelineQuery(config);
+            const boundaries = period === null ? undefined : chartBoundaries(now, period, detail);
             try {
-              const data = await json<UsageTimeline>(`/api/usage/timeline?${query}`);
-              if (active()) { setTimeline(companionTimelineProjection(data, config)); setChartError(false); }
-            } catch { if (active()) { setTimeline(null); setChartError(true); } }
+              const data = period === 'day' && !detail ? await daily : await readCost(boundaries);
+              if (active()) setChart({ key: chartKey, data, boundaries });
+            } catch { if (active()) setChart({ key: chartKey, data: null }); }
           })();
-          await Promise.allSettled([totals, chart]);
+          await Promise.allSettled([totals, daily, chartLoad]);
         })();
         await Promise.allSettled([quotas, metrics]);
       } finally {
@@ -184,7 +211,7 @@ export default function Tray({ resolveApiBase = resolveTrayApiBase }: TrayProps 
       window.removeEventListener('blur', blur); window.removeEventListener('focus', focus);
       window.removeEventListener('opencodex:tray-visibility', nativeVisibility);
     };
-  }, [revision, apiBase, t]);
+  }, [revision, apiBase, t, chartKey, period, detail]);
 
   const hiddenProviders = new Set(settings?.hiddenProviders ?? []);
   // Read off the popover's own requests: the runtime answered, could not be reached, or has not yet.
@@ -200,9 +227,13 @@ export default function Tray({ resolveApiBase = resolveTrayApiBase }: TrayProps 
       {switchError && <TrayAlert t={t}>{switchError}</TrayAlert>}
       {providers.filter(provider => !hiddenProviders.has(provider.name)).map(provider => <TrayProviderCard key={provider.name} provider={provider} switching={switching} onSwitch={(name, kind, id) => void switchAccount(name, kind, id)} locale={locale} t={t} />)}
     </section>}
-    {settings && <TrayTotalsCard usage={usage} settings={settings} locale={locale} t={t} />}
+    {settings && <TrayTotalsCard usage={usage} costs={[costTotal(dailyCost, -1), costTotal(dailyCost)]} costTruncated={dailyCost?.truncated} settings={settings} locale={locale} t={t} />}
     {usageError && <TrayAlert onRetry={retry} t={t}>{t('usage.loadError')}</TrayAlert>}
-    {settings?.showChart && <TrayCard className="tray-chart"><UsageCompanionChart timeline={timeline} chartStyle={settings.chartStyle} hours={settings.chartHours} loading={!timeline && !chartError} error={chartError ? t('usage.companion.timelineUnavailable') : null} onRetry={retry} locale={locale} t={t} /></TrayCard>}
+    {settings?.showChart && <TrayCard className="tray-chart" label={t('tray.apiEstimate')}>
+      <TrayCostChart period={period} detail={detail} boundaries={visibleChart?.boundaries} timeline={visibleChart?.data ?? null}
+        error={visibleChart?.data === null && visibleChart !== null} hours={settings.chartHours} onRetry={retry} locale={locale} t={t}
+        onPeriod={choosePeriod} onDrill={view => setDrill(current => [...current, view])} onBack={() => setDrill(current => current.slice(0, -1))} />
+    </TrayCard>}
     {settings?.showModels && !!usage[0]?.models.length && <TrayModelsCard usage={usage[0]} locale={locale} t={t} />}
     <TrayFooter updated={updated} t={t} />
   </main>;

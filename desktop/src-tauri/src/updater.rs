@@ -1,4 +1,6 @@
-const PERSONAL_BUILD_UPDATES_DISABLED: bool = true;
+const PERSONAL_WINDOWS_UPDATES: bool = cfg!(all(target_os = "windows", target_arch = "x86_64"));
+const PERSONAL_RELEASE_ASSETS: &str =
+    "https://github.com/abdomsisn/opencodex/releases/download/personal-windows-updates";
 use crate::{
     exit::{AbortedRestart, ExitCoordinator, ExitPhase, RestartReadiness},
     logging, tray,
@@ -374,25 +376,42 @@ fn configured_updater_target() -> Option<&'static str> {
 }
 
 pub async fn check(app: &AppHandle) -> Result<Option<Update>, String> {
-    if PERSONAL_BUILD_UPDATES_DISABLED {
-        return Ok(None); // Personal build: never query the upstream updater.
+    if !PERSONAL_WINDOWS_UPDATES {
+        return Ok(None);
     }
     let mut builder = app.updater_builder();
     if let Some(target) = configured_updater_target() {
         builder = builder.target(target);
     }
-    builder
+    let update = builder
         .build()
         .map_err(|error| error.to_string())?
         .check()
         .await
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+    if let Some(candidate) = &update {
+        require_personal_asset(candidate)?;
+    }
+    Ok(update)
+}
+
+fn require_personal_asset(update: &Update) -> Result<(), String> {
+    let expected = format!(
+        "{PERSONAL_RELEASE_ASSETS}/OpenCodex-Personal-{}-windows-x64.msi",
+        update.version
+    );
+    if update.download_url.as_str() == expected {
+        Ok(())
+    } else {
+        Err("Update package is outside the OpenCodex Personal Windows channel".into())
+    }
 }
 
 pub async fn install(app: &AppHandle, update: Update) -> Result<(), String> {
-    if PERSONAL_BUILD_UPDATES_DISABLED {
-        return Err("Personal build updates require a reviewed rebuild".into());
+    if !PERSONAL_WINDOWS_UPDATES {
+        return Err("Personal updates are available for Windows x64 only".into());
     }
+    require_personal_asset(&update)?;
     // Download and verify first, and separately from installing. The pinned updater checks the
     // release signature inside `download`, so these bytes are the ones the key signed; nothing has
     // been replaced yet, and a failure here costs only the download.

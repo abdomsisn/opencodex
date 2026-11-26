@@ -502,9 +502,11 @@ On macOS, in-app updates download `OpenCodex-<version>-macos.app.tar.gz`; the DM
 the first installation.
 
 The Tauri updater public key and endpoint are checked in to
-`desktop/src-tauri/tauri.conf.json`. Private updater and Apple signing credentials are
+`desktop/src-tauri/tauri.conf.json`. In upstream builds, private updater and Apple signing credentials are
 provided only as release secrets. Windows certificate signing is not wired yet, so MSI
 users may see a SmartScreen warning.
+
+The Personal fork uses a Windows x64 feed on its own GitHub release tag. The native updater requires the canonical versioned MSI URL and a package signature that binds the advertised version. The signing key stays off the build runner. The dashboard update page links to the Personal release for manual recovery.
 
 The app's own version comes from `desktop/src-tauri/tauri.conf.json` and `Cargo.toml` (mirrored
 in `Cargo.lock`), not from `package.json`, and the release workflow injects none. Those files move

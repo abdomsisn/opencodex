@@ -39,9 +39,14 @@ describe("personal build security boundaries", () => {
     const state = { available: true as const, token: "test-only-admin-token", source: "environment" as const, sessions: new Map(), pairingGrants: new Map() };
     expect(requireManagementAuth(new Request("http://127.0.0.1:10100/api/config"), state)?.status).toBe(401);
   });
-  test("desktop has no upstream update endpoint or signed updater artifact", () => {
+  test("desktop only trusts version-bound updates from the personal Windows channel", () => {
     const config = JSON.parse(readFileSync(new URL("../desktop/src-tauri/tauri.conf.json", import.meta.url), "utf8"));
-    expect(config.plugins.updater.endpoints).toEqual([]);
+    expect(config.plugins.updater.endpoints).toEqual([
+      "https://github.com/abdomsisn/opencodex/releases/download/personal-windows-updates/latest.json",
+    ]);
+    expect(config.plugins.updater.requireSignedVersion).toBe(true);
+    const upstream = JSON.parse(readFileSync(new URL("../desktop/src-tauri/update-trust-root.json", import.meta.url), "utf8"));
+    expect(config.plugins.updater.pubkey).not.toBe(upstream.rootKeys[0].publicKey);
     expect(config.bundle.createUpdaterArtifacts).toBe(false);
     expect(config.identifier).toBe("com.abdomsisn.opencodex.personal");
   });

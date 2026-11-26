@@ -1,9 +1,10 @@
 import { baseProviderLabel } from "../providers/label";
-import { cacheTokensFromUsage, usageAttributions } from "./summary";
+import { cacheTokensFromUsage, computeEntryCost, usageAttributions } from "./summary";
+import { estimateAttemptCost, serviceTierContext } from "./cost";
 import type { PersistedUsageEntry } from "./log";
 import { usageDisplayTotalTokens } from "./totals";
 
-export type TimelineMetric = "total" | "input" | "output" | "cached";
+export type TimelineMetric = "total" | "input" | "output" | "cached" | "cost";
 export type TimelineAggregation = "sum" | "average" | "max";
 export type TimelineGrouping = "model" | "modelAccount";
 export const TIMELINE_HOURS = [6, 24, 72, 168] as const;
@@ -17,6 +18,7 @@ export interface TimelineQuery {
   models: string[] | null;
   hiddenProviders: string[];
   now: number;
+  boundaries?: number[];
 }
 
 export interface TimelineSeries {
@@ -41,9 +43,11 @@ export interface UsageTimeline {
   availableModels: string[];
   missingMeasurements: number;
   truncated: boolean;
+  costCoverage?: { priced: number[]; unpriced: number[] };
+  bucketUsage?: { requests: number[]; tokens: number[] };
 }
 
-const METRICS: readonly TimelineMetric[] = ["total", "input", "output", "cached"];
+const METRICS: readonly TimelineMetric[] = ["total", "input", "output", "cached", "cost"];
 const AGGREGATIONS: readonly TimelineAggregation[] = ["sum", "average", "max"];
 const GROUPINGS: readonly TimelineGrouping[] = ["model", "modelAccount"];
 
@@ -115,6 +119,18 @@ export function parseTimelineQuery(params: URLSearchParams, now: number): Timeli
     return { error: "hiddenProvider must contain at most 100 nonblank provider names" };
   }
   if (!Number.isFinite(now)) return { error: "now must be finite" };
+  const rawBoundaries = params.get("boundaries");
+  let boundaries: number[] | undefined;
+  if (rawBoundaries !== null) {
+    if (rawBoundaries.length > 600) return { error: "too many calendar boundaries" };
+    boundaries = rawBoundaries.split(",").map(value => value.trim() ? Number(value) : NaN);
+    if (boundaries.length < 2 || boundaries.length > 32 || boundaries.some((value, index) =>
+      !Number.isSafeInteger(value) || value < 0 || value > now + 32 * 86_400_000
+      || (index > 0 && value <= boundaries![index - 1]!))
+      || boundaries.at(-1)! - boundaries[0]! > 370 * 86_400_000) {
+      return { error: "invalid calendar boundaries" };
+    }
+  }
   return {
     hours: hoursNumber as TimelineQuery["hours"],
     bucketMinutes,
@@ -124,6 +140,7 @@ export function parseTimelineQuery(params: URLSearchParams, now: number): Timeli
     models: models as string[] | null,
     hiddenProviders: [...new Set(hiddenProviders)].sort(),
     now,
+    ...(boundaries ? { boundaries } : {}),
   };
 }
 
@@ -142,11 +159,24 @@ function metricValue(metric: TimelineMetric, attribution: ReturnType<typeof usag
   return cacheTokensFromUsage(attribution.usage).read;
 }
 
+/** Subscription routes use the corresponding API quote when it is available. */
+function timelineCost(entry: PersistedUsageEntry, index: number, original: ReturnType<typeof computeEntryCost>): number | undefined {
+  const attempt = entry.attempts?.[index];
+  const target = attempt ?? entry;
+  if (baseProviderLabel(target.provider) === "openai" && !target.model.includes("/")) {
+    const apiQuote = estimateAttemptCost({
+      ...target, ordinal: index, provider: "openai-apikey", allowModelLevelFallback: false,
+    }, undefined, serviceTierContext(entry));
+    if (apiQuote) return apiQuote.cost.total;
+  }
+  return (attempt ? original.attemptEstimates?.[index] : original.estimate)?.cost.total;
+}
+
 export function createTimelineAccumulator(query: TimelineQuery): { add(entry: PersistedUsageEntry): void; finish(): UsageTimeline } {
   const bucketSeconds = query.bucketMinutes * 60;
-  const buckets = Math.ceil(query.hours * 60 / query.bucketMinutes);
-  const end = (Math.floor(query.now / 1000 / bucketSeconds) + 1) * bucketSeconds;
-  const start = end - buckets * bucketSeconds;
+  const buckets = query.boundaries ? query.boundaries.length - 1 : Math.ceil(query.hours * 60 / query.bucketMinutes);
+  const end = query.boundaries ? query.boundaries.at(-1)! / 1000 : (Math.floor(query.now / 1000 / bucketSeconds) + 1) * bucketSeconds;
+  const start = query.boundaries ? query.boundaries[0]! / 1000 : end - buckets * bucketSeconds;
   const startMs = start * 1000;
   const endMs = end * 1000;
   const series = new Map<string, SeriesState>();
@@ -154,12 +184,19 @@ export function createTimelineAccumulator(query: TimelineQuery): { add(entry: Pe
   const hiddenProviders = new Set(query.hiddenProviders);
   const selectedModels = query.models === null ? null : new Set(query.models.map(normalizeTimelineModelId));
   let missingMeasurements = 0;
+  const priced = Array<number>(buckets).fill(0);
+  const unpriced = Array<number>(buckets).fill(0);
+  const bucketRequests = Array<number>(buckets).fill(0);
+  const bucketTokens = Array<number>(buckets).fill(0);
 
   function add(entry: PersistedUsageEntry): void {
     if (entry.timestamp < startMs || entry.timestamp >= endMs) return;
-    const bucket = Math.floor((entry.timestamp - startMs) / (bucketSeconds * 1000));
+    const bucket = query.boundaries ? query.boundaries.findIndex(boundary => boundary > entry.timestamp) - 1
+      : Math.floor((entry.timestamp - startMs) / (bucketSeconds * 1000));
     if (bucket < 0 || bucket >= buckets) return;
-    for (const attribution of usageAttributions(entry)) {
+    let cost: ReturnType<typeof computeEntryCost> | undefined;
+    let included = false;
+    for (const [index, attribution] of usageAttributions(entry).entries()) {
       const provider = baseProviderLabel(attribution.provider);
       if (hiddenProviders.has(attribution.provider) || hiddenProviders.has(provider)) continue;
       const modelId = timelineModelId(attribution.provider, attribution.model);
@@ -180,7 +217,15 @@ export function createTimelineAccumulator(query: TimelineQuery): { add(entry: Pe
         };
         series.set(id, state);
       }
-      const value = metricValue(query.metric, attribution);
+      const value = query.metric === "cost"
+        ? timelineCost(entry, index, cost ??= computeEntryCost(entry))
+        : metricValue(query.metric, attribution);
+      if (query.metric === "cost") {
+        included = true;
+        bucketTokens[bucket] = (bucketTokens[bucket] ?? 0) + (metricValue("total", attribution) ?? 0);
+        const counts = value === undefined ? unpriced : priced;
+        counts[bucket] = (counts[bucket] ?? 0) + 1;
+      }
       if (value === undefined) {
         missingMeasurements += 1;
         continue;
@@ -196,6 +241,7 @@ export function createTimelineAccumulator(query: TimelineQuery): { add(entry: Pe
         requests.set(attribution.requestId, (requests.get(attribution.requestId) ?? 0) + value);
       }
     }
+    if (included) bucketRequests[bucket] = (bucketRequests[bucket] ?? 0) + 1;
   }
 
   function finish(): UsageTimeline {
@@ -267,6 +313,10 @@ export function createTimelineAccumulator(query: TimelineQuery): { add(entry: Pe
       availableModels: [...availableModels].sort(),
       missingMeasurements,
       truncated: false,
+      ...(query.metric === "cost" ? {
+        costCoverage: { priced, unpriced },
+        bucketUsage: { requests: bucketRequests, tokens: bucketTokens },
+      } : {}),
     };
   }
 
