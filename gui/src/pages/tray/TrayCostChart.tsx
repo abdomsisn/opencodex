@@ -42,6 +42,7 @@ export function TrayCostChart({ period, detail, boundaries, timeline, error, hou
     requests: timeline?.bucketUsage?.requests[index], tokens: timeline?.bucketUsage?.tokens[index],
   })) : [];
   const selected = bars.find(bar => bar.start === (hoveredStart ?? focusedStart)) ?? bars.at(-1);
+  const selectedIndex = selected ? bars.indexOf(selected) : -1;
   const series = (timeline?.series ?? []).filter(row => row.points.some(point => point > 0));
   const max = Math.max(0, ...bars.map(bar => bar.cost.amount));
   const money = (amount: number) => formatTrayCost({ amount, priced: 1, unpriced: 0 }, locale);
@@ -81,15 +82,17 @@ export function TrayCostChart({ period, detail, boundaries, timeline, error, hou
             {bars.map(({ start, end, cost }, index) => {
               const label = periodLabel(start, end, barPeriod, locale);
               const amount = formatTrayCost(cost, locale);
+              const parts = series.map((row, colorIndex) => ({ id: row.id, colorIndex, value: row.points[index] ?? 0 }))
+                .filter(part => part.value > 0);
               return <button type="button" key={start} title={label + ' · ' + amount} aria-label={label + ' · ' + amount}
                 data-highlighted={start === selected?.start}
                 onPointerEnter={() => setHoveredStart(start)} onFocus={() => setFocusedStart(start)} onBlur={() => setFocusedStart(null)}
                 onClick={() => { setHoveredStart(null); setFocusedStart(null); onDrill({ period: barPeriod, start, end }); }}>
                 <span className="tray-cost-stack" aria-hidden="true">
-                  {max > 0 && series.map((row, colorIndex) => {
-                    const value = row.points[index] ?? 0;
-                    return value > 0 && <span key={row.id} style={{ height: (value / max * 100) + '%', backgroundColor: chartColor(colorIndex) }} />;
-                  })}
+                  {max > 0 && parts.length > 0 && <span className="tray-cost-segments" style={{ height: (cost.amount / max * 100) + '%' }}>
+                    {parts.map(part => <span key={part.id} style={{ flexGrow: part.value / cost.amount * 100,
+                      minHeight: `min(2px, ${100 / parts.length}%)`, backgroundColor: chartColor(part.colorIndex) }} />)}
+                  </span>}
                 </span>
               </button>;
             })}
@@ -110,6 +113,7 @@ export function TrayCostChart({ period, detail, boundaries, timeline, error, hou
         {series.map((row, index) => <span className="usage-companion-legend-item" key={row.id} title={row.id}>
           <span className="usage-companion-swatch" style={{ backgroundColor: chartColor(index) }} aria-hidden="true" />
           <span>{row.id === 'other' ? t('tray.historyOther') : series.some(other => other !== row && other.model === row.model) ? row.id : row.model}</span>
+          <span>{(row.points[selectedIndex] ?? 0) > 0 ? money(row.points[selectedIndex]!) : '—'}</span>
         </span>)}
       </div>
       {timeline?.truncated && <p className="muted text-caption">{t('usage.companion.olderRecordsSkipped')}</p>}

@@ -1,4 +1,5 @@
 import { readUsageSnapshotForManagement } from "../../usage/log";
+import { scanUsageLedgerCooperatively } from "../../usage/ledger-scanner";
 import { createTimelineAccumulator, parseTimelineQuery } from "../../usage/timeline";
 import { userCostOverlayVersion } from "../../usage/user-cost-overlays";
 import { jsonResponse } from "../auth-cors";
@@ -22,6 +23,13 @@ export async function handleUsageTimelineRoutes(ctx: ManagementContext): Promise
   let promise: Promise<ReturnType<ReturnType<typeof createTimelineAccumulator>["finish"]>>;
   promise = (async () => {
     const accumulator = createTimelineAccumulator(normalized);
+    if (query.metric === "cost") {
+      const scan = await scanUsageLedgerCooperatively({ onEntry: entry => accumulator.add(entry) });
+      return {
+        ...accumulator.finish(),
+        truncated: scan.invalidRows > 0 || scan.oversizedRows > 0 || scan.processedThroughBytes < (scan.revision?.size ?? 0),
+      };
+    }
     const snapshot = await readUsageSnapshotForManagement(ctx.config.managementUsageMaxReadBytes);
     for (const entry of snapshot.entries) accumulator.add(entry);
     return {

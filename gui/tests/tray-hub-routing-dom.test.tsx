@@ -129,7 +129,7 @@ test('the cost chart drills from a month through weeks and days into the hourly 
   };
   await click('.tray-chart-tags button', 'Bar chart');
   expect(container.querySelectorAll('.tray-cost-bars button')).toHaveLength(30);
-  expect(container.querySelectorAll('.tray-cost-stack:first-child > span')).toHaveLength(60);
+  expect(container.querySelectorAll('.tray-cost-segments > span')).toHaveLength(60);
   expect(container.querySelector('.tray-bars-summary')?.textContent).toContain('5 requests');
   expect(container.querySelector('.tray-chart .usage-companion-legend')?.textContent).toContain('gpt-6');
   await click('.tray-chart-tags button', 'Month');

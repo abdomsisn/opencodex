@@ -269,13 +269,26 @@ html.tray-document[data-tray-vibrancy='on'] {
 .tray-totals .tray-figure dt { display: block; }
 .tray-chart-controls { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
 .tray-chart-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.tray-page .tray-chart-tags button,
+.tray-page .tray-cost-bars > button {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+  font: inherit;
+}
+.tray-page .tray-chart-tags button { padding: 2px 4px; font-size: 12px; }
 .tray-chart-tags button {
   padding: 2px 4px;
   color: var(--ocx-fg-muted);
   cursor: pointer;
   font-size: 12px;
 }
-.tray-chart-tags button[aria-pressed='true'] {
+.tray-page .tray-chart-tags button[aria-pressed='true'] {
   color: var(--ocx-fg);
   font-weight: 650;
 }
@@ -285,7 +298,8 @@ html.tray-document[data-tray-vibrancy='on'] {
 .tray-bars-summary > span:last-child { margin-inline-start: auto; text-align: end; color: var(--ocx-fg); font-variant-numeric: tabular-nums; }
 .tray-bars-layout { --tray-plot-height: 104px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px; }
 .tray-bars-y { display: flex; flex-direction: column; justify-content: space-between; align-items: end; height: var(--tray-plot-height); color: var(--ocx-fg-subtle); font-size: 9px; font-variant-numeric: tabular-nums; }
-.tray-cost-bars { position: relative; display: flex; height: var(--tray-plot-height); border-bottom: 1px solid var(--ocx-line-strong); gap: 1px; }
+.tray-bars-main { min-width: 0; }
+.tray-cost-bars { position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); height: var(--tray-plot-height); border-bottom: 1px solid var(--ocx-line-strong); }
 .tray-cost-bars::before, .tray-cost-bars::after {
   position: absolute;
   inset-inline: 0;
@@ -303,10 +317,11 @@ html.tray-document[data-tray-vibrancy='on'] {
   justify-content: center;
   cursor: pointer;
 }
-.tray-cost-bars > button[data-highlighted='true'] { background: var(--ocx-surface-2); }
+.tray-page .tray-cost-bars > button[data-highlighted='true'] { background: var(--ocx-surface-2); }
 .tray-cost-bars > button:focus-visible { z-index: 1; outline: 1px solid var(--ocx-fg-muted); outline-offset: -1px; }
-.tray-cost-stack { display: flex; flex-direction: column-reverse; width: 78%; max-width: 28px; height: 100%; }
-.tray-cost-stack > span { display: block; flex: none; width: 100%; }
+.tray-cost-stack { position: absolute; inset-block: 0; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column-reverse; width: 68%; max-width: 28px; }
+.tray-cost-segments { display: flex; flex: none; flex-direction: column-reverse; width: 100%; overflow: hidden; }
+.tray-cost-segments > span { flex-basis: 0; width: 100%; }
 .tray-bars-x { position: relative; height: 15px; margin-top: 3px; color: var(--ocx-fg-subtle); font-size: 9px; font-variant-numeric: tabular-nums; }
 .tray-bars-x > span { position: absolute; white-space: nowrap; transform: translateX(-50%); }
 .tray-bars-x > span[data-edge='first'] { transform: none; }
